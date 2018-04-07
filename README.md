@@ -4,7 +4,6 @@ Tensorflow implement of paper: [A Hierarchical Approach for Generating Descripti
 I haven't fine-tunning the parameters, but I achieve the metric scores:
 ![metric scores](https://github.com/chenxinpeng/im2p/blob/master/img/metric_scores.png)
 
-[//]: <> (Please send e-mail to me if you have any questions and advices, my e-mail: xinpeng_chen@whu.edu.cn.)
 Please feel free to ask questios in Issue.
 
 ## Step 1
@@ -24,7 +23,7 @@ $ python split_dataset
 ```
 We will get images from [VisualGenome dataset] which the authors used in the paper.
 
-##Step 3
+## Step 3
 Run the scripts:
 ```bash
 $ python get_imgs_train_path.py
@@ -35,7 +34,7 @@ We will get three txt files: imgs_train_path.txt, imgs_val_path.txt, imgs_test_p
 
 After this, we use `dense caption` to extract features. 
 
-##Step 4
+## Step 4
 Run the script:
 ```bash
 $ ./download_pretrained_model.sh
@@ -54,7 +53,7 @@ $ th extract_features.lua -boxes_per_image 50 -max_images -1 -input_txt imgs_tes
 ```
 Note that **-gpu -1** means we are only using CPU when cudnn fails to run properly in torch.
 
-Also note that my **hdf5** module always crashes in torch, so I rewrite the features saving part in `extract_features.lua` by saving them directly to disk first, and then use `h5py` in Python to convert these features into hdf5 format. Run this script:
+Also note that my **hdf5** module always crashes in torch, so I rewrite the features saving part in `extract_features.lua` by saving them directly to hard disk first, and then use `h5py` in Python to convert these features into hdf5 format. Run this script:
 ```bash
 $ bash convert-to-hdf5.sh
 ```
