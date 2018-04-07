@@ -5,16 +5,20 @@ import glob
 import json
 import subprocess
 
-genome_VG_100K_path = "/home/chenxp/data/genome/VG_100K"
-genome_VG_100K_2_path = "/home/chenxp/data/genome/VG_100K_2"
+genome_VG_100K_path = "./data/genome/VG_100K"
+genome_VG_100K_2_path = "./data/genome/VG_100K_2"
 
-train_json_path = "/home/chenxp/hitachi/Hierarchical_RNN/data/train_split.json"
-val_json_path = "/home/chenxp/hitachi/Hierarchical_RNN/data/val_split.json"
-test_json_path = "/home/chenxp/hitachi/Hierarchical_RNN/data/test_split.json"
+train_json_path = "./data/genome/train_split.json"
+val_json_path = "./data/genome/val_split.json"
+test_json_path = "./data/genome/test_split.json"
 
-train_savepath = "/home/chenxp/data/genome/im2p_train"
-val_savepath = "/home/chenxp/data/genome/im2p_val"
-test_savepath = "/home/chenxp/data/genome/im2p_test"
+train_savepath = "./data/genome/im2p_train/"
+val_savepath = "./data/genome/im2p_val/"
+test_savepath = "./data/genome/im2p_test/"
+
+os.mkdir(train_savepath)
+os.mkdir(val_savepath)
+os.mkdir(test_savepath)
 
 all_images = glob.glob(genome_VG_100K_path + "/*.jpg")
 all_images_2 = glob.glob(genome_VG_100K_2_path + "/*.jpg")
