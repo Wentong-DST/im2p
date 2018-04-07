@@ -4,9 +4,18 @@ Tensorflow implement of paper: [A Hierarchical Approach for Generating Descripti
 I haven't fine-tunning the parameters, but I achieve the metric scores:
 ![metric scores](https://github.com/chenxinpeng/im2p/blob/master/img/metric_scores.png)
 
-Please send e-mail to me if you have any questions and advices, my e-mail: xinpeng_chen@whu.edu.cn.
+[//]: <> (Please send e-mail to me if you have any questions and advices, my e-mail: xinpeng_chen@whu.edu.cn.)
+Please feel free to ask questios in Issue.
 
 ## Step 1
+Configure the torch running environment. Recommend to use the approach described in [Installing Torch without root privileges](https://milindpadalkar.wordpress.com/2016/03/04/installing-torch-without-root-privileges/). Then deploy the running environment follow by [densecap](https://github.com/jcjohnson/densecap) step by step.
+
+To verify the running environment, run the script:
+```bash
+$ th check_lua_packages.lua
+```
+
+## Step 2
 Download the [VisualGenome dataset](http://visualgenome.org/), we get the two files: VG_100K, VG_100K_2. According to the paper, we download the training, val and test splits json files. These three json files save the image names of train, validation, test data. 
 
 Running the script:
@@ -15,7 +24,7 @@ $ python split_dataset
 ```
 We will get images from [VisualGenome dataset] which the authors used in the paper.
 
-##Step 2
+##Step 3
 Run the scripts:
 ```bash
 $ python get_imgs_train_path.py
@@ -24,26 +33,33 @@ $ python get_imgs_test_path.py
 ```
 We will get three txt files: imgs_train_path.txt, imgs_val_path.txt, imgs_test_path.txt. They save the train, val, test images path.
 
-After this, we use `dense caption` to extract features. Deploy the running environment follow by [densecap](https://github.com/jcjohnson/densecap) step by step.
+After this, we use `dense caption` to extract features. 
 
+##Step 4
 Run the script:
 ```bash
 $ ./download_pretrained_model.sh
 $ th extract_features.lua -boxes_per_image 50 -max_images -1 -input_txt imgs_train_path.txt \
-                          -output_h5 ./data/im2p_train_output.h5 -gpu 0 -use_cudnn 1
+                          -output_h5 ./data/im2p_train_output.h5 -gpu -1 -use_cudnn 0
 ```
 We should download the pre-trained model: `densecap-pretrained-vgg16.t7`. Then, according to the paper, we extract **50 boxes** from each image. 
 
 Also, don't forget extract val images and test images features:
 ```bash
 $ th extract_features.lua -boxes_per_image 50 -max_images -1 -input_txt imgs_val_path.txt \
-                          -output_h5 ./data/im2p_val_output.h5 -gpu 0 -use_cudnn 1
+                          -output_h5 ./data/im2p_val_output.h5 -gpu -1 -use_cudnn 0
                           
 $ th extract_features.lua -boxes_per_image 50 -max_images -1 -input_txt imgs_test_path.txt \
-                          -output_h5 ./data/im2p_test_output.h5 -gpu 0 -use_cudnn 1
+                          -output_h5 ./data/im2p_test_output.h5 -gpu -1 -use_cudnn 0
+```
+Note that **-gpu -1** means we are only using CPU when cudnn fails to run properly in torch.
+
+Also note that my **hdf5** module always crashes in torch, so I rewrite the features saving part in `extract_features.lua` by saving them directly to disk first, and then use `h5py` in Python to convert these features into hdf5 format. Run this script:
+```bash
+$ bash convert-to-hdf5.sh
 ```
 
-## Step 3
+## Step 5
 Run the script:
 ```bash
 $ python parse_json.py
@@ -51,7 +67,7 @@ $ python parse_json.py
 In this step, we process the `paragraphs_v1.json` file for training and testing. We get the `img2paragraph` file in the **./data** directory. Its structure is like this:
 ![img2paragraph](https://github.com/chenxinpeng/im2p/blob/master/img/4.png)
 
-## Step 4
+## Step 6
 Finally, we can train and test model, in the terminal:
 ```bash
 $ CUDA_VISIBLE_DEVICES=0 ipython
