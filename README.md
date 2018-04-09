@@ -1,5 +1,6 @@
 # im2p
-Tensorflow implement of paper: [A Hierarchical Approach for Generating Descriptive Image Paragraphs](http://cs.stanford.edu/people/ranjaykrishna/im2p/index.html)
+Tensorflow implement of paper: [A Hierarchical Approach for Generating Descriptive Image Paragraphs](http://cs.stanford.edu/people/ranjaykrishna/im2p/index.html).
+
 Thanks to the original repo author [chenxinpeng](https://github.com/chenxinpeng/im2p)
 
 I haven't fine-tunning the parameters, but I achieve the metric scores:
@@ -77,7 +78,7 @@ After training, we can test the model:
 >>> HRNN_paragraph_batch.test()
 ```
 
-### Results
+### Loss record
 ![loss](https://github.com/Wentong-DST/im2p/blob/master/loss_imgs/250.png)
 
 ### Results
