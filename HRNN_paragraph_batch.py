@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 
-__author__ = "Xinpeng.Chen"
+# __author__ = "Xinpeng.Chen"
 
 import os
 import sys
@@ -11,11 +11,12 @@ import cPickle as pickle
 import numpy as np
 import pandas as pd
 import random
-
 import h5py
-import ipdb
-
 import tensorflow as tf
+
+
+# set up GPU usage   
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 
 # ------------------------------------------------------------------------------------------------------
@@ -306,7 +307,7 @@ def preProBuildWordVocab(sentence_iterator, word_count_threshold=5):
             tmp_sent.remove('')
 
         for w in tmp_sent:
-           word_counts[w] = word_counts.get(w, 0) + 1
+            word_counts[w] = word_counts.get(w, 0) + 1
 
     vocab = [w for w in word_counts if word_counts[w] >= word_count_threshold]
     print 'filtered words from %d to %d' % (len(word_counts), len(vocab))
@@ -364,12 +365,13 @@ learning_rate = 0.0001
 #######################################################################################################
 # Word vocubulary and captions preprocessing stage
 #######################################################################################################
-img2paragraph = pickle.load(open('./data/img2paragraph', 'rb'))
+img2paragraph = pickle.load(open('img2paragraph', 'rb'))
 all_sentences = []
 for key, paragraph in img2paragraph.iteritems():
     for each_sent in paragraph[1]:
         each_sent.replace(',', ' ,')
         all_sentences.append(each_sent)
+        
 word2idx, idx2word, bias_init_vector = preProBuildWordVocab(all_sentences, word_count_threshold=2)
 np.save('./data/idx2word_batch', idx2word)
 
@@ -446,6 +448,7 @@ for img_name, img_paragraph in img2paragraph.iteritems():
 with open('./data/img2paragraph_modify_batch', 'wb') as f:
     pickle.dump(img2paragraph_modify, f)
 
+print "finish word vocubulary and captions preprocessing stage"
 
 #######################################################################################################
 # Train, validation and testing stage
@@ -458,7 +461,7 @@ def train():
     train_feats_path = './data/im2p_train_output.h5'
     train_output_file = h5py.File(train_feats_path, 'r')
     train_feats = train_output_file.get('feats')
-    train_imgs_full_path_lists = open('./densecap/imgs_train_path.txt').read().splitlines()
+    train_imgs_full_path_lists = open('imgs_train_path.txt').read().splitlines()
     train_imgs_names = map(lambda x: os.path.basename(x).split('.')[0], train_imgs_full_path_lists)
 
 
@@ -478,16 +481,17 @@ def train():
                                           bias_init_vector = bias_init_vector)
 
     tf_feats, tf_num_distribution, tf_captions_matrix, tf_captions_masks, tf_loss, tf_loss_sent, tf_loss_word = model.build_model()
+          
     sess = tf.InteractiveSession()
 
-    saver = tf.train.Saver(max_to_keep=500, write_version=1)
+    # saver = tf.train.Saver(max_to_keep=500, write_version=1)
     train_op = tf.train.AdamOptimizer(learning_rate).minimize(tf_loss)
     tf.global_variables_initializer().run()
 
-    # when you want to train the model from the front model
-    #new_saver = tf.train.Saver(max_to_keep=500)
-    #new_saver = tf.train.import_meta_graph('./models_batch/model-92.meta')
-    #new_saver.restore(sess, tf.train.latest_checkpoint('./models_batch/'))
+    # when you want to train the model from the previously saved model
+    new_saver = tf.train.Saver(max_to_keep=500)
+    new_saver = tf.train.import_meta_graph('./models_batch/model-250.meta')
+    new_saver.restore(sess, tf.train.latest_checkpoint('./models_batch/'))
 
     all_vars = tf.trainable_variables()
 
