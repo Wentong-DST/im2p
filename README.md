@@ -1,10 +1,11 @@
 # im2p
 Tensorflow implement of paper: [A Hierarchical Approach for Generating Descriptive Image Paragraphs](http://cs.stanford.edu/people/ranjaykrishna/im2p/index.html)
+Thanks to the original repo author [chenxinpeng](https://github.com/chenxinpeng/im2p)
 
 I haven't fine-tunning the parameters, but I achieve the metric scores:
 ![metric scores](https://github.com/chenxinpeng/im2p/blob/master/img/metric_scores.png)
 
-Please feel free to ask questios in Issue.
+Please feel free to ask questions in Issues.
 
 ## Step 1
 Configure the torch running environment. Recommend to use the approach described in [Installing Torch without root privileges](https://milindpadalkar.wordpress.com/2016/03/04/installing-torch-without-root-privileges/). Then deploy the running environment follow by [densecap](https://github.com/jcjohnson/densecap) step by step.
@@ -19,16 +20,14 @@ Download the [VisualGenome dataset](http://visualgenome.org/), we get the two fi
 
 Running the script:
 ```bash
-$ python split_dataset
+$ python split_dataset.py
 ```
 We will get images from [VisualGenome dataset] which the authors used in the paper.
 
 ## Step 3
 Run the scripts:
 ```bash
-$ python get_imgs_train_path.py
-$ python get_imgs_val_path.py
-$ python get_imgs_test_path.py
+$ python get_imgs_path.py
 ```
 We will get three txt files: imgs_train_path.txt, imgs_val_path.txt, imgs_test_path.txt. They save the train, val, test images path.
 
@@ -77,6 +76,9 @@ After training, we can test the model:
 ```bash
 >>> HRNN_paragraph_batch.test()
 ```
+
+### Results
+![loss](https://github.com/Wentong-DST/im2p/blob/master/loss_imgs/250.png)
 
 ### Results
 ![demo](https://github.com/chenxinpeng/im2p/blob/master/img/HRNN_demo.png)
