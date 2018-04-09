@@ -17,7 +17,7 @@ $ th check_lua_packages.lua
 ```
 
 ## Step 2
-Download the [VisualGenome dataset](http://visualgenome.org/), we get the two files: VG_100K, VG_100K_2. According to the paper, we download the training, val and test splits json files. These three json files save the image names of train, validation, test data. 
+Download the [VisualGenome dataset](http://visualgenome.org/), we get the two files: VG_100K, VG_100K_2. According to the paper, we download the [training](https://cs.stanford.edu/people/ranjaykrishna/im2p/train_split.json), [val](https://cs.stanford.edu/people/ranjaykrishna/im2p/val_split.json) and [test](https://cs.stanford.edu/people/ranjaykrishna/im2p/test_split.json) splits json files. These three json files save the image names of train, validation, test data. We save them into **data** folder.
 
 Running the script:
 ```bash
