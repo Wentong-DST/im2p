@@ -482,108 +482,112 @@ def train():
     # Model Initialization:
     # n_words, batch_size, num_boxes, feats_dim, project_dim, sentRNN_lstm_dim, sentRNN_FC_dim, wordRNN_lstm_dim, S_max, N_max
     
-    model = RegionPooling_HierarchicalRNN(n_words = len(word2idx),
-                                          batch_size = batch_size,
-                                          num_boxes = num_boxes,
-                                          feats_dim = feats_dim,
-                                          project_dim = project_dim,
-                                          sentRNN_lstm_dim = sentRNN_lstm_dim,
-                                          sentRNN_FC_dim = sentRNN_FC_dim,
-                                          wordRNN_lstm_dim = wordRNN_lstm_dim,
-                                          S_max = S_max,
-                                          N_max = N_max,
-                                          word_embed_dim = word_embed_dim,
-                                          bias_init_vector = bias_init_vector)
+    with tf.variable_scope(tf.get_variable_scope()) as scope:
+        model = RegionPooling_HierarchicalRNN(n_words = len(word2idx),
+                                              batch_size = batch_size,
+                                              num_boxes = num_boxes,
+                                              feats_dim = feats_dim,
+                                              project_dim = project_dim,
+                                              sentRNN_lstm_dim = sentRNN_lstm_dim,
+                                              sentRNN_FC_dim = sentRNN_FC_dim,
+                                              wordRNN_lstm_dim = wordRNN_lstm_dim,
+                                              S_max = S_max,
+                                              N_max = N_max,
+                                              word_embed_dim = word_embed_dim,
+                                              bias_init_vector = bias_init_vector)
 
-    tf_feats, tf_num_distribution, tf_captions_matrix, tf_captions_masks, tf_loss, tf_loss_sent, tf_loss_word = model.build_model()
+        tf_feats, tf_num_distribution, tf_captions_matrix, tf_captions_masks, tf_loss, tf_loss_sent, tf_loss_word = model.build_model()
           
-    sess = tf.InteractiveSession()
-    
-    # saver = tf.train.Saver(max_to_keep=500, write_version=1)
-    train_op = tf.train.AdamOptimizer(learning_rate).minimize(tf_loss)
-    tf.global_variables_initializer().run()
+    # sess = tf.InteractiveSession()  --cxp
+    with tf.Session() as sess:
+        print "start creating session"
+        # saver = tf.train.Saver(max_to_keep=500, write_version=1)
+        train_op = tf.train.AdamOptimizer(learning_rate).minimize(tf_loss)
+        tf.global_variables_initializer().run()
 
-    # when you want to train the model from the previously saved model
-    new_saver = tf.train.Saver(max_to_keep=500)
-    new_saver = tf.train.import_meta_graph('./models_batch/model-250.meta')
-    new_saver.restore(sess, tf.train.latest_checkpoint('./models_batch/'))
+        # when you want to train the model from the previously saved model
+        # how many models we want to save
+        # new_saver = tf.train.Saver(max_to_keep=50, save_relative_paths=True)
+        new_saver = tf.train.import_meta_graph('./models_batch/model-250.meta')
+        print "meta file imported"
+        # model_file = tf.train.latest_checkpoint('./models_batch')  
+        # new_saver.restore(sess, model_file)
+        new_saver.restore(sess, './im2p/models_batch/model-250.ckpt')
+        
+        all_vars = tf.trainable_variables()
 
-    all_vars = tf.trainable_variables()
+        # open a loss file to record the loss value
+        loss_fd = open('loss_batch.txt', 'w')
+        img2idx = {}
+        for idx, img in enumerate(train_imgs_names):
+            img2idx[img] = idx
 
-    # open a loss file to record the loss value
-    loss_fd = open('loss_batch.txt', 'w')
-    img2idx = {}
-    for idx, img in enumerate(train_imgs_names):
-        img2idx[img] = idx
+        # plt draw the loss curve
+        # http://stackoverflow.com/questions/11874767/real-time-plotting-in-while-loop-with-matplotlib
+        loss_to_draw = []
 
-    # plt draw the loss curve
-    # refer from: http://stackoverflow.com/questions/11874767/real-time-plotting-in-while-loop-with-matplotlib
-    loss_to_draw = []
+        for epoch in range(0, n_epochs):
+            loss_to_draw_epoch = []
+            # disorganize the order
+            random.shuffle(train_imgs_names)
 
-    for epoch in range(0, n_epochs):
-        loss_to_draw_epoch = []
-        # disorganize the order
-        random.shuffle(train_imgs_names)
+            for start, end in zip(range(0, len(train_imgs_names), batch_size),
+                                  range(batch_size, len(train_imgs_names), batch_size)):
 
-        for start, end in zip(range(0, len(train_imgs_names), batch_size),
-                              range(batch_size, len(train_imgs_names), batch_size)):
+                start_time = time.time()
 
-            start_time = time.time()
+                img_name = train_imgs_names[start:end]
+                current_feats_index = map(lambda x: img2idx[x], img_name)
+                current_feats = np.asarray( map(lambda x: train_feats[x], current_feats_index) )
 
-            img_name = train_imgs_names[start:end]
-            current_feats_index = map(lambda x: img2idx[x], img_name)
-            current_feats = np.asarray( map(lambda x: train_feats[x], current_feats_index) )
+                current_num_distribution = np.asarray( map(lambda x: img2paragraph_modify[x][0], img_name) )
+                current_captions_matrix = np.asarray( map(lambda x: img2paragraph_modify[x][1], img_name) )
 
-            current_num_distribution = np.asarray( map(lambda x: img2paragraph_modify[x][0], img_name) )
-            current_captions_matrix = np.asarray( map(lambda x: img2paragraph_modify[x][1], img_name) )
+                current_captions_masks = np.zeros( (current_captions_matrix.shape[0], current_captions_matrix.shape[1], current_captions_matrix.shape[2]) )
+                # find the non-zero element
+                nonzeros = np.array( map(lambda each_matrix: np.array( map(lambda x: (x != 2).sum() + 1, each_matrix ) ), current_captions_matrix ) )
+                for i in range(batch_size):
+                    for ind, row in enumerate(current_captions_masks[i]):
+                        row[:(nonzeros[i, ind]-1)] = 1
 
-            current_captions_masks = np.zeros( (current_captions_matrix.shape[0], current_captions_matrix.shape[1], \
-                                                current_captions_matrix.shape[2]) )
-            # find the non-zero element
-            nonzeros = np.array( map(lambda each_matrix: np.array( map(lambda x: (x != 2).sum() + 1, each_matrix ) ), \
-                                    current_captions_matrix ) )
-            for i in range(batch_size):
-                for ind, row in enumerate(current_captions_masks[i]):
-                    row[:(nonzeros[i, ind]-1)] = 1
+                # shape of current_feats: batch_size x 50 x 4096
+                # shape of current_num_distribution: batch_size x 6
+                # shape of current_captions_matrix: batch_size x 6 x 50
+                _, loss_val, loss_sent, loss_word= sess.run(
+                                    [train_op, tf_loss, tf_loss_sent, tf_loss_word],
+                                    feed_dict={
+                                               tf_feats: current_feats,
+                                               tf_num_distribution: current_num_distribution,
+                                               tf_captions_matrix: current_captions_matrix,
+                                               tf_captions_masks: current_captions_masks
+                                    })
 
-            # shape of current_feats: batch_size x 50 x 4096
-            # shape of current_num_distribution: batch_size x 6
-            # shape of current_captions_matrix: batch_size x 6 x 50
-            _, loss_val, loss_sent, loss_word= sess.run(
-                                [train_op, tf_loss, tf_loss_sent, tf_loss_word],
-                                feed_dict={
-                                           tf_feats: current_feats,
-                                           tf_num_distribution: current_num_distribution,
-                                           tf_captions_matrix: current_captions_matrix,
-                                           tf_captions_masks: current_captions_masks
-                                })
+                # append loss to list in a epoch
+                loss_to_draw_epoch.append(loss_val)
 
-            # append loss to list in a epoch
-            loss_to_draw_epoch.append(loss_val)
+                # running information
+                print 'idx: ', start, ' Epoch: ', epoch, ' loss: ', loss_val, ' loss_sent: ', loss_sent, ' loss_word: ', loss_word, \
+                      ' Time cost: ', str((time.time() - start_time))
+                loss_fd.write('epoch ' + str(epoch) + ' loss ' + str(loss_val))
 
-            # running information
-            print 'idx: ', start, ' Epoch: ', epoch, ' loss: ', loss_val, ' loss_sent: ', loss_sent, ' loss_word: ', loss_word, \
-                  ' Time cost: ', str((time.time() - start_time))
-            loss_fd.write('epoch ' + str(epoch) + ' loss ' + str(loss_val))
+            # draw loss curve every epoch
+            loss_to_draw.append(np.mean(loss_to_draw_epoch))
+            plt_save_dir = './loss_imgs'
+            plt_save_img_name = str(epoch) + '.png'
+            plt.plot(range(len(loss_to_draw)), loss_to_draw, color='g')
+            plt.grid(True)
+            plt.savefig(os.path.join(plt_save_dir, plt_save_img_name))
 
-        # draw loss curve every epoch
-        loss_to_draw.append(np.mean(loss_to_draw_epoch))
-        plt_save_dir = './loss_imgs'
-        plt_save_img_name = str(epoch) + '.png'
-        plt.plot(range(len(loss_to_draw)), loss_to_draw, color='g')
-        plt.grid(True)
-        plt.savefig(os.path.join(plt_save_dir, plt_save_img_name))
-
-        if np.mod(epoch, 10) == 0:
-            print "Epoch ", epoch, " is done. Saving the model ..."
-            saver.save(sess, os.path.join(model_path, 'model'), global_step=epoch)
-    loss_fd.close()
+            if np.mod(epoch, 10) == 0:
+                print "Epoch ", epoch, " is done. Saving the model ..."
+                saver.save(sess, os.path.join(model_path, 'model'), global_step=epoch, write_meta_graph=False)
+        loss_fd.close()
 
 
 def test():
     start_time = time.time()
     # change the model path according to your environment
-    model_path = './models_batch/model-500'
+    model_path = './models_batch/model-250'
 
     # It's very important to use Pandas to Series this idx2word dict
     # After this operation, we can use list to extract the word at the same time
