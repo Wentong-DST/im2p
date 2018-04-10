@@ -38,22 +38,21 @@ After this, we use `dense caption` to extract features.
 Run the script:
 ```bash
 $ ./download_pretrained_model.sh
+```
+We should download the pre-trained model: `densecap-pretrained-vgg16.t7`.
+Then, according to the paper, we extract **50 boxes** and the features from each image. So run the script:
+```bash
+$ ./extract_features.sh
+```
+in which the following command will be executed:
+```bash
 $ th extract_features.lua -boxes_per_image 50 -max_images -1 -input_txt imgs_train_path.txt \
                           -output_h5 ./data/im2p_train_output.h5 -gpu -1 -use_cudnn 0
 ```
-We should download the pre-trained model: `densecap-pretrained-vgg16.t7`. Then, according to the paper, we extract **50 boxes** from each image. 
 
-Also, don't forget extract val images and test images features:
-```bash
-$ th extract_features.lua -boxes_per_image 50 -max_images -1 -input_txt imgs_val_path.txt \
-                          -output_h5 ./data/im2p_val_output.h5 -gpu -1 -use_cudnn 0
-                          
-$ th extract_features.lua -boxes_per_image 50 -max_images -1 -input_txt imgs_test_path.txt \
-                          -output_h5 ./data/im2p_test_output.h5 -gpu -1 -use_cudnn 0
-```
 Note that **-gpu -1** means we are only using CPU when cudnn fails to run properly in torch.
 
-Also note that my **hdf5** module always crashes in torch, so I rewrite the features saving part in `extract_features.lua` by saving them directly to hard disk first, and then use `h5py` in Python to convert these features into hdf5 format. Run this script:
+Also note that my **hdf5** module always crashes in torch, so I have to rewrite the features saving part in `extract_features.lua` by saving them directly to hard disk first, and then use `h5py` in Python to convert these features into hdf5 format. Run this script:
 ```bash
 $ bash convert-to-hdf5.sh
 ```
