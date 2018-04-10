@@ -13,6 +13,7 @@ import pandas as pd
 import random
 import h5py
 import tensorflow as tf
+import pdb
 
 
 # set up GPU usage   
@@ -50,7 +51,7 @@ class RegionPooling_HierarchicalRNN():
         self.sentRNN_lstm_dim = sentRNN_lstm_dim # 512 hidden size
         self.sentRNN_FC_dim = sentRNN_FC_dim # 1024 in fully connected layer
         self.wordRNN_lstm_dim = wordRNN_lstm_dim # 512 hidden size
-
+        
         # word embedding, parameters of embedding
         # embedding shape: n_words x wordRNN_lstm_dim
         with tf.device('/cpu:0'):
@@ -77,11 +78,18 @@ class RegionPooling_HierarchicalRNN():
         self.fc2_b = tf.Variable(tf.zeros(1024), name='fc2_b')
 
         # word LSTM
-        self.word_LSTM = tf.nn.rnn_cell.BasicLSTMCell(wordRNN_lstm_dim, state_is_tuple=True)
-        self.word_LSTM = tf.nn.rnn_cell.MultiRNNCell([self.word_LSTM] * 2, state_is_tuple=True)
+        # https://github.com/tensorflow/tensorflow/issues/16186
+        def wordLSTM():
+            lstm = tf.nn.rnn_cell.BasicLSTMCell(wordRNN_lstm_dim, state_is_tuple=True)
+            return lstm
+        self.word_LSTM = tf.nn.rnn_cell.MultiRNNCell([wordLSTM() for _ in range(2)], state_is_tuple=True)
+        # self.word_LSTM = tf.nn.rnn_cell.BasicLSTMCell(wordRNN_lstm_dim, state_is_tuple=True)   --cxp
+        # self.word_LSTM = tf.nn.rnn_cell.MultiRNNCell([self.word_LSTM] * 2, state_is_tuple=True)   --cxp
         #self.word_LSTM2 = tf.nn.rnn_cell.BasicLSTMCell(wordRNN_lstm_dim, state_is_tuple=True)
 
         self.embed_word_W = tf.Variable(tf.random_uniform([wordRNN_lstm_dim, n_words], -0.1,0.1), name='embed_word_W')
+        
+        tf.get_variable_scope().reuse_variables()
         if bias_init_vector is not None:
             self.embed_word_b = tf.Variable(bias_init_vector.astype(np.float32), name='embed_word_b')
         else:
@@ -135,10 +143,12 @@ class RegionPooling_HierarchicalRNN():
         # The word RNN has the max number, N_max = 50, the number in the papar is 50
         #----------------------------------------------------------------------------------------------
         for i in range(0, self.S_max):
+            
             if i > 0:
                 tf.get_variable_scope().reuse_variables()
 
-            with tf.variable_scope('sent_LSTM'):
+            # https://www.tensorflow.org/api_docs/python/tf/variable_scope
+            with tf.variable_scope('sent_LSTM', reuse=tf.AUTO_REUSE):
                 sent_output, sent_state = self.sent_LSTM(project_vec, sent_state)
 
             with tf.name_scope('fc1'):
@@ -154,9 +164,10 @@ class RegionPooling_HierarchicalRNN():
             # 3. http://stackoverflow.com/questions/35226198/is-this-one-hot-encoding-in-tensorflow-fast-or-flawed-for-any-reason
             # 4. http://stackoverflow.com/questions/35198528/reshape-y-train-for-binary-text-classification-in-tensorflow
             sentRNN_logistic_mu = tf.nn.xw_plus_b( sent_output, self.logistic_Theta_W, self.logistic_Theta_b )
-            sentRNN_label = tf.pack([ 1 - num_distribution[:, i], num_distribution[:, i] ])
+            sentRNN_label = tf.stack([ 1 - num_distribution[:, i], num_distribution[:, i] ])
             sentRNN_label = tf.transpose(sentRNN_label)
-            sentRNN_loss = tf.nn.softmax_cross_entropy_with_logits(sentRNN_logistic_mu, sentRNN_label)
+            # https://github.com/ibab/tensorflow-wavenet/issues/223
+            sentRNN_loss = tf.nn.softmax_cross_entropy_with_logits(labels=sentRNN_label, logits=sentRNN_logistic_mu)
             sentRNN_loss = tf.reduce_sum(sentRNN_loss)/self.batch_size
             loss += sentRNN_loss * lambda_sent
             loss_sent += sentRNN_loss
@@ -168,6 +179,7 @@ class RegionPooling_HierarchicalRNN():
             #    word_output, word_state = self.word_LSTM(sent_topic_vec)
             topic = tf.nn.rnn_cell.LSTMStateTuple(sent_topic_vec[:, 0:512], sent_topic_vec[:, 512:])
             word_state = (topic, topic)
+            # tf.reset_default_graph()
             for j in range(0, self.N_max):
                 if j > 0:
                     tf.get_variable_scope().reuse_variables()
@@ -175,20 +187,22 @@ class RegionPooling_HierarchicalRNN():
                 with tf.device('/cpu:0'):
                     current_embed = tf.nn.embedding_lookup(self.Wemb, captions[:, i, j])
 
-                with tf.variable_scope('word_LSTM'):
+                with tf.variable_scope('word_LSTM', reuse=tf.AUTO_REUSE):
+                    # pdb.set_trace()
                     word_output, word_state = self.word_LSTM(current_embed, word_state)
 
-                # How to make one-hot encoder, I refer from this excellent web:
+                # How to make one-hot encoder
                 # http://stackoverflow.com/questions/33681517/tensorflow-one-hot-encoder
                 labels = tf.reshape(captions[:, i, j+1], [-1, 1])
                 indices = tf.reshape(tf.range(0, self.batch_size, 1), [-1, 1])
-                concated = tf.concat(1, [indices, labels])
-                onehot_labels = tf.sparse_to_dense(concated, tf.pack([self.batch_size, self.n_words]), 1.0, 0.0)
+                # https://www.tensorflow.org/api_docs/python/tf/concat
+                concated = tf.concat([indices, labels], 1)
+                onehot_labels = tf.sparse_to_dense(concated, tf.stack([self.batch_size, self.n_words]), 1.0, 0.0)
 
                 # At each timestep the hidden state of the last LSTM layer is used to predict a distribution
                 # over the words in the vocbulary
                 logit_words = tf.nn.xw_plus_b(word_output[:], self.embed_word_W, self.embed_word_b)
-                cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logit_words, onehot_labels)
+                cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logit_words, labels=onehot_labels)
                 cross_entropy = cross_entropy * captions_masks[:, i, j]
                 loss_wordRNN = tf.reduce_sum(cross_entropy) / self.batch_size
                 loss += loss_wordRNN * lambda_word
@@ -458,15 +472,16 @@ def train():
     # some preparing work
     ##############################################################################
     model_path = './models_batch/'
-    train_feats_path = './data/im2p_train_output.h5'
+    train_feats_path = './data/im2p_val_output.h5'
     train_output_file = h5py.File(train_feats_path, 'r')
     train_feats = train_output_file.get('feats')
-    train_imgs_full_path_lists = open('imgs_train_path.txt').read().splitlines()
+    train_imgs_full_path_lists = open('imgs_val_path.txt').read().splitlines()
     train_imgs_names = map(lambda x: os.path.basename(x).split('.')[0], train_imgs_full_path_lists)
 
 
     # Model Initialization:
     # n_words, batch_size, num_boxes, feats_dim, project_dim, sentRNN_lstm_dim, sentRNN_FC_dim, wordRNN_lstm_dim, S_max, N_max
+    
     model = RegionPooling_HierarchicalRNN(n_words = len(word2idx),
                                           batch_size = batch_size,
                                           num_boxes = num_boxes,
@@ -483,7 +498,7 @@ def train():
     tf_feats, tf_num_distribution, tf_captions_matrix, tf_captions_masks, tf_loss, tf_loss_sent, tf_loss_word = model.build_model()
           
     sess = tf.InteractiveSession()
-
+    
     # saver = tf.train.Saver(max_to_keep=500, write_version=1)
     train_op = tf.train.AdamOptimizer(learning_rate).minimize(tf_loss)
     tf.global_variables_initializer().run()
@@ -522,9 +537,11 @@ def train():
             current_num_distribution = np.asarray( map(lambda x: img2paragraph_modify[x][0], img_name) )
             current_captions_matrix = np.asarray( map(lambda x: img2paragraph_modify[x][1], img_name) )
 
-            current_captions_masks = np.zeros( (current_captions_matrix.shape[0], current_captions_matrix.shape[1], current_captions_matrix.shape[2]) )
+            current_captions_masks = np.zeros( (current_captions_matrix.shape[0], current_captions_matrix.shape[1], \
+                                                current_captions_matrix.shape[2]) )
             # find the non-zero element
-            nonzeros = np.array( map(lambda each_matrix: np.array( map(lambda x: (x != 2).sum() + 1, each_matrix ) ), current_captions_matrix ) )
+            nonzeros = np.array( map(lambda each_matrix: np.array( map(lambda x: (x != 2).sum() + 1, each_matrix ) ), \
+                                    current_captions_matrix ) )
             for i in range(batch_size):
                 for ind, row in enumerate(current_captions_masks[i]):
                     row[:(nonzeros[i, ind]-1)] = 1
@@ -545,7 +562,8 @@ def train():
             loss_to_draw_epoch.append(loss_val)
 
             # running information
-            print 'idx: ', start, ' Epoch: ', epoch, ' loss: ', loss_val, ' loss_sent: ', loss_sent, ' loss_word: ', loss_word, ' Time cost: ', str((time.time() - start_time))
+            print 'idx: ', start, ' Epoch: ', epoch, ' loss: ', loss_val, ' loss_sent: ', loss_sent, ' loss_word: ', loss_word, \
+                  ' Time cost: ', str((time.time() - start_time))
             loss_fd.write('epoch ' + str(epoch) + ' loss ' + str(loss_val))
 
         # draw loss curve every epoch
