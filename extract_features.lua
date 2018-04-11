@@ -11,8 +11,7 @@ local box_utils = require 'densecap.box_utils'
 local cmd = torch.CmdLine()
 
 -- Model options
-cmd:option('-checkpoint',
-  'data/models/densecap/densecap-pretrained-vgg16.t7')
+cmd:option('-checkpoint', './data/models/densecap/densecap-pretrained-vgg16.t7')
 cmd:option('-image_size', 720)
 cmd:option('-rpn_nms_thresh', 0.7)
 cmd:option('-final_nms_thresh', 0.4)
@@ -42,7 +41,7 @@ local function run_image(model, img_path, opt, dtype)
   local boxes_xywh = box_utils.xcycwh_to_xywh(boxes_xcycwh)
   return boxes_xywh, feats
 end
-
+print("done run image")
 
 local function main()
   local opt = cmd:parse(arg)
@@ -57,7 +56,8 @@ local function main()
       break
     end
   end
-  
+  print("done check image")
+    
   -- Load and set up the model
   local dtype, use_cudnn = utils.setup_gpus(opt.gpu, opt.use_cudnn)
   local checkpoint = torch.load(opt.checkpoint)
@@ -68,6 +68,7 @@ local function main()
     final_nms_thresh = opt.final_nms_thresh,
     num_proposals = opt.num_proposals,
   }
+  print("done set test args")
   model:evaluate()
   
   -- Set up the output tensors
@@ -89,12 +90,24 @@ local function main()
     all_boxes[i]:copy(boxes[{{1, M}}])
     all_feats[i]:copy(feats[{{1, M}}])
   end
+  print("done processing image")
+  
+  print("start making data file")
+  -- Write data to disk, instead of HDF5 files
+  
+ 
+  file = torch.DiskFile('opt.output_h5' .. '-feats', 'w')
+  file:writeObject(all_feats)
+  file:close()
+  print("done writing features")
 
-  -- Write data to the HDF5 file
-  local h5_file = hdf5.open(opt.output_h5)
-  h5_file:write('/feats', all_feats)
-  h5_file:write('/boxes', all_boxes)
-  h5_file:close()
+
+  file = torch.DiskFile('opt.output_h5' .. '-boxes', 'w')
+  file:writeObject(all_boxes)
+  file:close()
+  print("done writing boxes")
+
+
 end
 
 main()
