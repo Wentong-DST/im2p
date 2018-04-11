@@ -9,12 +9,14 @@ I haven't fine-tunning the parameters, but I achieve the metric scores:
 Please feel free to ask questions in Issues.
 
 ## Step 1
-Configure the torch running environment. Must upgrade to Tensorflow v1.2 or above. Recommend to use the approach described in [Installing Torch without root privileges](https://milindpadalkar.wordpress.com/2016/03/04/installing-torch-without-root-privileges/). Then deploy the running environment follow by [densecap](https://github.com/jcjohnson/densecap) step by step.
+Configure the torch running environment. Upgrade to Tensorflow v1.2 or above. Install Torch, recommend to use the approach described in [Installing Torch without root privileges](https://milindpadalkar.wordpress.com/2016/03/04/installing-torch-without-root-privileges/). Then deploy the running environment follow by [densecap](https://github.com/jcjohnson/densecap) step by step.
 
 To verify the running environment, run the script:
 ```bash
 $ th check_lua_packages.lua
 ```
+
+Also clone [pycocoevalcap](https://github.com/tylin/coco-caption.git) in same directory, but I have written some patches to fix some bugs, some replace [bleu.py, cider.py, meteor.py, rouge.py] with their corresponding files in **pycocoevalcap** folder. 
 
 ## Step 2
 Download the [VisualGenome dataset](http://visualgenome.org/), we get the two files: VG_100K, VG_100K_2. According to the paper, we download the [training](https://cs.stanford.edu/people/ranjaykrishna/im2p/train_split.json), [val](https://cs.stanford.edu/people/ranjaykrishna/im2p/val_split.json) and [test](https://cs.stanford.edu/people/ranjaykrishna/im2p/test_split.json) splits json files. These three json files save the image names of train, validation, test data. We save them into **data** folder.
@@ -64,6 +66,7 @@ $ python parse_json.py
 ```
 In this step, we process the `paragraphs_v1.json` file for training and testing. We get the `img2paragraph` file in the **./data** directory. Its structure is like this:
 ![img2paragraph](https://github.com/chenxinpeng/im2p/blob/master/img/4.png)
+
 
 ## Step 6
 Finally, we can train and test model, in the terminal:
