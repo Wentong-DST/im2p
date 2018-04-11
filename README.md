@@ -1,7 +1,7 @@
 # im2p
 Tensorflow implement of paper: [A Hierarchical Approach for Generating Descriptive Image Paragraphs](http://cs.stanford.edu/people/ranjaykrishna/im2p/index.html).
 
-Thanks to the original repo author [chenxinpeng](https://github.com/chenxinpeng/im2p)
+Thanks to the original repo author [chenxinpeng](https://github.com/chenxinpeng/im2p).
 
 I haven't fine-tunning the parameters, but I achieve the metric scores:
 ![metric scores](https://github.com/chenxinpeng/im2p/blob/master/img/metric_scores.png)
@@ -9,7 +9,7 @@ I haven't fine-tunning the parameters, but I achieve the metric scores:
 Please feel free to ask questions in Issues.
 
 ## Step 1
-Configure the torch running environment. Recommend to use the approach described in [Installing Torch without root privileges](https://milindpadalkar.wordpress.com/2016/03/04/installing-torch-without-root-privileges/). Then deploy the running environment follow by [densecap](https://github.com/jcjohnson/densecap) step by step.
+Configure the torch running environment. Must upgrade to Tensorflow v1.2 or above. Recommend to use the approach described in [Installing Torch without root privileges](https://milindpadalkar.wordpress.com/2016/03/04/installing-torch-without-root-privileges/). Then deploy the running environment follow by [densecap](https://github.com/jcjohnson/densecap) step by step.
 
 To verify the running environment, run the script:
 ```bash
@@ -75,6 +75,10 @@ $ CUDA_VISIBLE_DEVICES=0 ipython
 After training, we can test the model:
 ```bash
 >>> HRNN_paragraph_batch.test()
+```
+And then compute all evaluation metrics:
+```bash
+>>> HRNN_paragraph_batch.eval()
 ```
 
 ### Loss record
