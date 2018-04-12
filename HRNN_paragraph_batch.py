@@ -19,6 +19,9 @@ import pdb
 # set up GPU usage   
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
+# upgrade to tensorflow 1.4
+if tf.__version__ < '1.2':
+    print "tensorflow version is too old"
 
 # ------------------------------------------------------------------------------------------------------
 # Initialization class
@@ -51,7 +54,7 @@ class RegionPooling_HierarchicalRNN():
         self.sentRNN_lstm_dim = sentRNN_lstm_dim # 512 hidden size
         self.sentRNN_FC_dim = sentRNN_FC_dim # 1024 in fully connected layer
         self.wordRNN_lstm_dim = wordRNN_lstm_dim # 512 hidden size
-        
+
         # word embedding, parameters of embedding
         # embedding shape: n_words x wordRNN_lstm_dim
         with tf.device('/cpu:0'):
@@ -85,7 +88,7 @@ class RegionPooling_HierarchicalRNN():
         self.word_LSTM = tf.nn.rnn_cell.MultiRNNCell([wordLSTM() for _ in range(2)], state_is_tuple=True)
         # self.word_LSTM = tf.nn.rnn_cell.BasicLSTMCell(wordRNN_lstm_dim, state_is_tuple=True)   --cxp
         # self.word_LSTM = tf.nn.rnn_cell.MultiRNNCell([self.word_LSTM] * 2, state_is_tuple=True)   --cxp
-        #self.word_LSTM2 = tf.nn.rnn_cell.BasicLSTMCell(wordRNN_lstm_dim, state_is_tuple=True)
+        # self.word_LSTM2 = tf.nn.rnn_cell.BasicLSTMCell(wordRNN_lstm_dim, state_is_tuple=True)
 
         self.embed_word_W = tf.Variable(tf.random_uniform([wordRNN_lstm_dim, n_words], -0.1,0.1), name='embed_word_W')
         
@@ -247,7 +250,7 @@ class RegionPooling_HierarchicalRNN():
             # sent_state:
             # LSTMStateTuple(c=<tf.Tensor 'sent_LSTM/BasicLSTMCell/add_2:0' shape=(1, 512) dtype=float32>,
             #                h=<tf.Tensor 'sent_LSTM/BasicLSTMCell/mul_2:0' shape=(1, 512) dtype=float32>)
-            with tf.variable_scope('sent_LSTM'):
+            with tf.variable_scope('sent_LSTM', reuse=tf.AUTO_REUSE):
                 sent_output, sent_state = self.sent_LSTM(project_vec, sent_state)
 
             # self.fc1_W: 512 x 1024, self.fc1_b: 1024
@@ -277,11 +280,11 @@ class RegionPooling_HierarchicalRNN():
                     tf.get_variable_scope().reuse_variables()
 
                 if j == 0:
-		    with tf.device('/cpu:0'):
-			# get word embedding of BOS (index = 0)
+                    with tf.device('/cpu:0'):
+                        # get word embedding of BOS (index = 0)
                         current_embed = tf.nn.embedding_lookup(self.Wemb, tf.zeros([1], dtype=tf.int64))
 
-                with tf.variable_scope('word_LSTM'):
+                with tf.variable_scope('word_LSTM', reuse=tf.AUTO_REUSE):
                     word_output, word_state = self.word_LSTM(current_embed, word_state)
 
                 # word_state:
@@ -301,7 +304,8 @@ class RegionPooling_HierarchicalRNN():
 
             generated_paragraph.append(generated_sent)
 
-        return feats, generated_paragraph, pred_re
+        # return feats, generated_paragraph, pred_re, --cxp
+        return feats, generated_paragraph, pred_re, generated_sent
 
 
 # -----------------------------------------------------------------------------------------------------
@@ -358,7 +362,7 @@ def preProBuildWordVocab(sentence_iterator, word_count_threshold=5):
 #######################################################################################################
 # Parameters Setting
 #######################################################################################################
-batch_size = 50 # Being support batch_size
+batch_size = 64 # Being support batch_size
 num_boxes = 50 # number of Detected regions in each image
 feats_dim = 4096 # feature dimensions of each regions
 project_dim = 1024 # project the features to one vector, which is 1024 dimensions
@@ -379,7 +383,7 @@ learning_rate = 0.0001
 #######################################################################################################
 # Word vocubulary and captions preprocessing stage
 #######################################################################################################
-img2paragraph = pickle.load(open('img2paragraph', 'rb'))
+img2paragraph = pickle.load(open('./data/img2paragraph', 'rb'))
 all_sentences = []
 for key, paragraph in img2paragraph.iteritems():
     for each_sent in paragraph[1]:
@@ -387,7 +391,9 @@ for key, paragraph in img2paragraph.iteritems():
         all_sentences.append(each_sent)
         
 word2idx, idx2word, bias_init_vector = preProBuildWordVocab(all_sentences, word_count_threshold=2)
-np.save('./data/idx2word_batch', idx2word)
+
+if !os.path.exists('./data/idx2word_batch.npy'):
+    np.save('./data/idx2word_batch', idx2word)
 
 img2paragraph_modify = {}
 for img_name, img_paragraph in img2paragraph.iteritems():
@@ -456,11 +462,13 @@ for img_name, img_paragraph in img2paragraph.iteritems():
             else:
                 img_captions_matrix[idx, idy] = word2idx['<unk>']
 
+    # this is a matrix of number
     # Pay attention, the value type 'img_name' here is NUMBER, I change it to STRING type
     img2paragraph_modify[str(img_name)] = [img_num_distribution, img_captions_matrix]
 
-with open('./data/img2paragraph_modify_batch', 'wb') as f:
-    pickle.dump(img2paragraph_modify, f)
+if !os.path.exists('./data/img2paragraph_modify_batch'):    
+    with open('./data/img2paragraph_modify_batch', 'wb') as f:
+        pickle.dump(img2paragraph_modify, f)
 
 print "finish word vocubulary and captions preprocessing stage"
 
@@ -507,12 +515,18 @@ def train():
 
         # when you want to train the model from the previously saved model
         # how many models we want to save
-        # new_saver = tf.train.Saver(max_to_keep=50, save_relative_paths=True)
-        new_saver = tf.train.import_meta_graph('./models_batch/model-250.meta')
-        print "meta file imported"
+        saver = tf.train.Saver(max_to_keep=50)
+        # before TF v1, by cxp
+        # new_saver = tf.train.import_meta_graph('./models_batch/model-250.meta')
+        # print "meta file imported"
         # model_file = tf.train.latest_checkpoint('./models_batch')  
         # new_saver.restore(sess, model_file)
-        new_saver.restore(sess, './im2p/models_batch/model-250.ckpt')
+        
+        try:
+            saver.restore(sess, './models_batch/model-350')
+        except:
+            print "fail to load pretrained model"
+            pass
         
         all_vars = tf.trainable_variables()
 
@@ -525,7 +539,8 @@ def train():
         # plt draw the loss curve
         # http://stackoverflow.com/questions/11874767/real-time-plotting-in-while-loop-with-matplotlib
         loss_to_draw = []
-
+        plt_save_dir = './loss_imgs'
+        
         for epoch in range(0, n_epochs):
             loss_to_draw_epoch = []
             # disorganize the order
@@ -569,109 +584,117 @@ def train():
                 print 'idx: ', start, ' Epoch: ', epoch, ' loss: ', loss_val, ' loss_sent: ', loss_sent, ' loss_word: ', loss_word, \
                       ' Time cost: ', str((time.time() - start_time))
                 loss_fd.write('epoch ' + str(epoch) + ' loss ' + str(loss_val))
-
-            # draw loss curve every epoch
+            
             loss_to_draw.append(np.mean(loss_to_draw_epoch))
-            plt_save_dir = './loss_imgs'
-            plt_save_img_name = str(epoch) + '.png'
-            plt.plot(range(len(loss_to_draw)), loss_to_draw, color='g')
-            plt.grid(True)
-            plt.savefig(os.path.join(plt_save_dir, plt_save_img_name))
 
             if np.mod(epoch, 10) == 0:
-                print "Epoch ", epoch, " is done. Saving the model ..."
-                saver.save(sess, os.path.join(model_path, 'model'), global_step=epoch, write_meta_graph=False)
+                # draw loss curve every 10 epochs
+                plt_save_img_name = str(epoch) + '.png'
+                plt.plot(range(len(loss_to_draw)), loss_to_draw, color='g')
+                plt.grid(True)
+                plt.savefig(os.path.join(plt_save_dir, plt_save_img_name))
+            
+                # save weights every 20 epochs
+                if np.mod(epoch, 20) == 0:
+                    print "Epoch ", epoch, " is done. Saving the model ..."
+                    saver.save(sess, os.path.join(model_path, 'model'), global_step=epoch, write_meta_graph=False)
         loss_fd.close()
 
 
 def test():
     start_time = time.time()
     # change the model path according to your environment
-    model_path = './models_batch/model-250'
+    model_path = './models_batch/model-350'
 
     # It's very important to use Pandas to Series this idx2word dict
     # After this operation, we can use list to extract the word at the same time
     idx2word = pd.Series(np.load('./data/idx2word_batch.npy').tolist())
 
-    test_feats_path = './data/im2p_test_output.h5'
+    test_feats_path = './data/im2p_val_output.h5'
     test_output_file = h5py.File(test_feats_path, 'r')
     test_feats = test_output_file.get('feats')
 
-    test_imgs_full_path_lists = open('./densecap/imgs_test_order.txt').read().splitlines()
+    # fix a bug here
+    test_imgs_full_path_lists = open('imgs_val_path.txt').read().splitlines()
     test_imgs_names = map(lambda x: os.path.basename(x).split('.')[0], test_imgs_full_path_lists)
-
+    
     # n_words, batch_size, num_boxes, feats_dim, project_dim, sentRNN_lstm_dim, sentRNN_FC_dim, wordRNN_lstm_dim, S_max, N_max
-    test_model = RegionPooling_HierarchicalRNN(n_words = len(word2idx),
-                                               batch_size = batch_size,
-                                               num_boxes = num_boxes,
-                                               feats_dim = feats_dim,
-                                               project_dim = project_dim,
-                                               sentRNN_lstm_dim = sentRNN_lstm_dim,
-                                               sentRNN_FC_dim = sentRNN_FC_dim,
-                                               wordRNN_lstm_dim = wordRNN_lstm_dim,
-                                               S_max = S_max,
-                                               N_max = N_max,
-                                               word_embed_dim = word_embed_dim,
-                                               bias_init_vector = bias_init_vector)
+    with tf.variable_scope(tf.get_variable_scope()) as scope:
+        test_model = RegionPooling_HierarchicalRNN(n_words = len(word2idx),
+                                                   batch_size = batch_size,
+                                                   num_boxes = num_boxes,
+                                                   feats_dim = feats_dim,
+                                                   project_dim = project_dim,
+                                                   sentRNN_lstm_dim = sentRNN_lstm_dim,
+                                                   sentRNN_FC_dim = sentRNN_FC_dim,
+                                                   wordRNN_lstm_dim = wordRNN_lstm_dim,
+                                                   S_max = S_max,
+                                                   N_max = N_max,
+                                                   word_embed_dim = word_embed_dim,
+                                                   bias_init_vector = bias_init_vector)
 
-    tf_feats, tf_generated_paragraph, tf_pred_re, tf_sent_topic_vectors = test_model.generate_model()
-    sess = tf.InteractiveSession()
+        tf_feats, tf_generated_paragraph, tf_pred_re, tf_sent_topic_vectors = test_model.generate_model()
+        # sess = tf.InteractiveSession()
 
-    saver = tf.train.Saver()
-    saver.restore(sess, model_path)
+    with tf.Session() as sess:
+        print "start creating session"
+        
+        saver = tf.train.Saver()
+        saver.restore(sess, model_path)
 
-    img2idx = {}
-    for idx, img in enumerate(test_imgs_names):
-        img2idx[img] = idx
+        img2idx = {}
+        for idx, img in enumerate(test_imgs_names):
+            img2idx[img] = idx
 
-    test_fd = open('HRNN_results.txt', 'w')
-    for idx, img_name in enumerate(test_imgs_names):
-        print idx, img_name
-        test_fd.write(img_name + '\n')
+        test_fd = open('HRNN_results.txt', 'w')
+        for idx, img_name in enumerate(test_imgs_names):
+            if idx % 100 == 0:
+                print idx, img_name
+            test_fd.write(img_name + '\n')
 
-        each_paragraph = []
-        current_paragraph = ""
+            each_paragraph = []
+            current_paragraph = ""
 
-        current_feats_index = img2idx[img_name]
-        current_feats = test_feats[current_feats_index]
-        current_feats = np.reshape(current_feats, [1, 50, 4096])
+            current_feats_index = img2idx[img_name]
+            current_feats = test_feats[current_feats_index]
+            current_feats = np.reshape(current_feats, [1, 50, 4096])
 
-        generated_paragraph_indexes, pred, sent_topic_vectors = sess.run(
-                                                                         [tf_generated_paragraph, tf_pred_re, tf_sent_topic_vectors],
-                                                                         feed_dict={
-                                                                             tf_feats: current_feats
-                                                                         })
+            generated_paragraph_indexes, pred, sent_topic_vectors = sess.run(
+                                                                             [tf_generated_paragraph, tf_pred_re, tf_sent_topic_vectors],
+                                                                             feed_dict={
+                                                                                 tf_feats: current_feats
+                                                                             })
 
-        #generated_paragraph = idx2word[generated_paragraph_indexes]
-        for sent_index in generated_paragraph_indexes:
-            each_sent = []
-            for word_index in sent_index:
-                each_sent.append(idx2word[word_index])
-            each_paragraph.append(each_sent)
+            #generated_paragraph = idx2word[generated_paragraph_indexes]
+            for sent_index in generated_paragraph_indexes:
+                each_sent = []
+                for word_index in sent_index:
+                    each_sent.append(idx2word[word_index])
+                each_paragraph.append(each_sent)
 
-        for idx, each_sent in enumerate(each_paragraph):
-            # if the current sentence is the end sentence of the paragraph
-            # According to the probability distribution:
-            # CONTINUE: [1, 0]
-            # STOP    : [0, 1]
-            # So, if the first item of pred is less than the T_stop
-            # the generation process is break
-            if pred[idx][0][0] <= T_stop:
-                break
-            current_sent = ''
-            for each_word in each_sent:
-                current_sent += each_word + ' '
-            current_sent = current_sent.replace('<eos> ', '')
-            current_sent = current_sent.replace('<pad> ', '')
-            current_sent = current_sent + '.'
-            current_sent = current_sent.replace(' .', '.')
-            current_sent = current_sent.replace(' ,', ',')
-            current_paragraph +=current_sent
-            if idx != len(each_paragraph) - 1:
-                current_paragraph += ' '
+            for idx, each_sent in enumerate(each_paragraph):
+                # if the current sentence is the end sentence of the paragraph
+                # According to the probability distribution:
+                # CONTINUE: [1, 0]
+                # STOP    : [0, 1]
+                # So, if the first item of pred is less than the T_stop
+                # the generation process is break
+                if pred[idx][0][0] <= T_stop:
+                    break
+                current_sent = ''
+                for each_word in each_sent:
+                    current_sent += each_word + ' '
+                current_sent = current_sent.replace('<eos> ', '')
+                current_sent = current_sent.replace('<pad> ', '')
+                current_sent = current_sent + '.'
+                current_sent = current_sent.replace(' .', '.')
+                current_sent = current_sent.replace(' ,', ',')
+                current_paragraph +=current_sent
+                if idx != len(each_paragraph) - 1:
+                    current_paragraph += ' '
 
-        test_fd.write(current_paragraph + '\n')
-    test_fd.close()
-    print "Time cost: " + str(time.time()-start_time)
+            test_fd.write(current_paragraph + '\n')
+        test_fd.close()
+        print "Time cost: " + str(time.time()-start_time + 'seconds')
 
 
