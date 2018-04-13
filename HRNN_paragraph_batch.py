@@ -6,7 +6,6 @@
 import os
 import sys
 import time
-import matplotlib.pyplot as plt
 import cPickle as pickle
 import numpy as np
 import pandas as pd
@@ -15,6 +14,11 @@ import h5py
 import tensorflow as tf
 import pdb
 
+# keep plt running backend mode
+# https://stackoverflow.com/questions/4931376/generating-matplotlib-graphs-without-a-running-x-server 
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
 
 # set up GPU usage   
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
@@ -392,7 +396,7 @@ for key, paragraph in img2paragraph.iteritems():
         
 word2idx, idx2word, bias_init_vector = preProBuildWordVocab(all_sentences, word_count_threshold=2)
 
-if !os.path.exists('./data/idx2word_batch.npy'):
+if os.path.exists('./data/idx2word_batch.npy') == False:
     np.save('./data/idx2word_batch', idx2word)
 
 img2paragraph_modify = {}
@@ -466,7 +470,7 @@ for img_name, img_paragraph in img2paragraph.iteritems():
     # Pay attention, the value type 'img_name' here is NUMBER, I change it to STRING type
     img2paragraph_modify[str(img_name)] = [img_num_distribution, img_captions_matrix]
 
-if !os.path.exists('./data/img2paragraph_modify_batch'):    
+if os.path.exists('./data/img2paragraph_modify_batch') == False:    
     with open('./data/img2paragraph_modify_batch', 'wb') as f:
         pickle.dump(img2paragraph_modify, f)
 
@@ -480,10 +484,10 @@ def train():
     # some preparing work
     ##############################################################################
     model_path = './models_batch/'
-    train_feats_path = './data/im2p_val_output.h5'
+    train_feats_path = './data/im2p_train_output.h5'
     train_output_file = h5py.File(train_feats_path, 'r')
     train_feats = train_output_file.get('feats')
-    train_imgs_full_path_lists = open('imgs_val_path.txt').read().splitlines()
+    train_imgs_full_path_lists = open('imgs_train_path.txt').read().splitlines()
     train_imgs_names = map(lambda x: os.path.basename(x).split('.')[0], train_imgs_full_path_lists)
 
 
@@ -515,7 +519,7 @@ def train():
 
         # when you want to train the model from the previously saved model
         # how many models we want to save
-        saver = tf.train.Saver(max_to_keep=50)
+        saver = tf.train.Saver(max_to_keep=150)
         # before TF v1, by cxp
         # new_saver = tf.train.import_meta_graph('./models_batch/model-250.meta')
         # print "meta file imported"
@@ -523,7 +527,8 @@ def train():
         # new_saver.restore(sess, model_file)
         
         try:
-            saver.restore(sess, './models_batch/model-350')
+            saver.restore(sess, './models_batch/model-20')
+	    print "pretrained model loaded successfully"
         except:
             print "fail to load pretrained model"
             pass
@@ -531,7 +536,8 @@ def train():
         all_vars = tf.trainable_variables()
 
         # open a loss file to record the loss value
-        loss_fd = open('loss_batch.txt', 'w')
+	# append log
+        loss_fd = open('loss_batch.txt', 'a')
         img2idx = {}
         for idx, img in enumerate(train_imgs_names):
             img2idx[img] = idx
@@ -581,8 +587,10 @@ def train():
                 loss_to_draw_epoch.append(loss_val)
 
                 # running information
-                print 'idx: ', start, ' Epoch: ', epoch, ' loss: ', loss_val, ' loss_sent: ', loss_sent, ' loss_word: ', loss_word, \
-                      ' Time cost: ', str((time.time() - start_time))
+                # save every 1000 images
+                if idx % 1000 == 0:
+                    print 'idx: ', start, ' Epoch: ', epoch, ' loss: ', loss_val, ' loss_sent: ', loss_sent, ' loss_word: ', loss_word, \
+                          ' Time cost: ', str((time.time() - start_time))
                 loss_fd.write('epoch ' + str(epoch) + ' loss ' + str(loss_val))
             
             loss_to_draw.append(np.mean(loss_to_draw_epoch))
@@ -602,6 +610,7 @@ def train():
 
 
 def test():
+    candidates = {}
     start_time = time.time()
     # change the model path according to your environment
     model_path = './models_batch/model-350'
@@ -693,9 +702,10 @@ def test():
                 if idx != len(each_paragraph) - 1:
                     current_paragraph += ' '
 
+
             test_fd.write(current_paragraph + '\n')
         test_fd.close()
-        print "Time cost: " + str(time.time()-start_time + 'seconds')
+        print "Time cost: " + str(time.time()-start_time) + 'seconds'
 
 def eval():
     # evaluation codes
