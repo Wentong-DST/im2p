@@ -697,4 +697,52 @@ def test():
         test_fd.close()
         print "Time cost: " + str(time.time()-start_time + 'seconds')
 
+def eval():
+    # evaluation codes
+    sys.path.append('../show-attend-and-tell/coco-caption')
+    from pycocoevalcap.bleu.bleu import Bleu
+    from pycocoevalcap.rouge.rouge import Rouge
+    from pycocoevalcap.cider.cider import Cider
+    from pycocoevalcap.meteor.meteor import Meteor
+
+
+    # load dict files
+    ref=pickle.load(open('./data/references.pkl','rb'))
+    hypo=pickle.load(open('./data/candidates.pkl','rb'))
+    new_ref = {}
+    for key in hypo.keys():
+        new_ref[key] = ref[int(key)]
+    ref = new_ref
+    
+    # rewrite from show-attend-tell
+    # def score(ref, hypo):
+    scorers = [
+        (Bleu(4),["Bleu_1","Bleu_2","Bleu_3","Bleu_4"]),
+        (Meteor(),"METEOR"),
+        (Rouge(),"ROUGE_L"),
+        (Cider(),"CIDEr")
+    ]
+    final_scores = {}
+    for scorer,method in scorers:
+        score,scores = scorer.compute_score(ref,hypo)
+        if type(score)==list:
+            for m,s in zip(method,score):
+                final_scores[m] = s
+        else:
+            final_scores[method] = score
+
+        #return final_scores
+    
+    # compute bleu score
+    # final_scores = score(ref, hypo)
+
+    # print out scores
+    print 'Bleu_1:\t',final_scores['Bleu_1']  
+    print 'Bleu_2:\t',final_scores['Bleu_2']  
+    print 'Bleu_3:\t',final_scores['Bleu_3']  
+    print 'Bleu_4:\t',final_scores['Bleu_4']  
+    print 'METEOR:\t',final_scores['METEOR']  
+    print 'ROUGE_L:',final_scores['ROUGE_L']  
+    print 'CIDEr:\t',final_scores['CIDEr']
+  
 
