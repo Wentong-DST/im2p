@@ -3,8 +3,8 @@ Tensorflow implement of paper: [A Hierarchical Approach for Generating Descripti
 
 Thanks to the original repo author [chenxinpeng](https://github.com/chenxinpeng/im2p).
 
-I haven't fine-tunning the parameters, but I achieve the metric scores:
-![metric scores](https://github.com/chenxinpeng/im2p/blob/master/img/metric_scores.png)
+I haven't fine-tunning the parameters, but I achieve the metric scores (by [chenxinpeng](https://github.com/chenxinpeng/im2p)):
+![metric scores](./img/metric_scores.png)
 
 Please feel free to ask questions in Issues.
 
@@ -56,7 +56,7 @@ Note that **-gpu -1** means we are only using CPU when cudnn fails to run proper
 
 Also note that my **hdf5** module always crashes in torch, so I have to rewrite the features saving part in `extract_features.lua` by saving them directly to hard disk first, and then use `h5py` in Python to convert these features into hdf5 format. Run this script:
 ```bash
-$ bash convert-to-hdf5.sh
+$ ./convert-to-hdf5.sh
 ```
 
 ## Step 5
@@ -64,8 +64,11 @@ Run the script:
 ```bash
 $ python parse_json.py
 ```
-In this step, we process the `paragraphs_v1.json` file for training and testing. We get the `img2paragraph` file in the **./data** directory. Its structure is like this:
-![img2paragraph](https://github.com/chenxinpeng/im2p/blob/master/img/4.png)
+In this step, we process the `paragraphs_v1.json` file for training and testing, which looks like this:
+![paragraphs_v1.json](https://github.com/Wentong-DST/im2p/blob/master/img/sample-json.jpg)
+
+We get the `img2paragraph` file in the **./data** directory. Its structure is like this:
+![img2paragraph](https://github.com/Wentong-DST/im2p/blob/master/img/4.png)
 
 
 ## Step 6
@@ -85,7 +88,7 @@ And then compute all evaluation metrics:
 ```
 
 ### Loss record
-![loss](https://github.com/Wentong-DST/im2p/blob/master/loss_imgs/250.png)
+![loss](./loss_imgs/250.png)
 
 ### Results
-![demo](https://github.com/chenxinpeng/im2p/blob/master/img/HRNN_demo.png)
+![demo](./img/HRNN_demo.png)
